@@ -13,9 +13,10 @@ using namespace cv;
 int load_and_split_features = 0;
 int load_train_features 	= 0;
 int build_bow_and_svm 		= 0;
+int svm_model 	 		 	= 1;
 int test 	 	 		 	= 1;
-int nn 	 		 			= 1;
-int svm 	 		 		= 0;
+int nn 	 		 			= 0;
+int svm 	 		 		= 1;
 
 extern string root_path;
 extern 	int cluster_n;
@@ -128,9 +129,41 @@ int main( int argc, char** argv )
 		bow_build(hog_feat, samples_label, samples_file_id, files_label, files_label.rows);
 	}
 
+	if(svm_model)
+	{
+		vector< vector<float> > train_histograms;
+		Mat train_histograms_labels;
+
+		string train_histograms_labels_fn = root_path + "train_data/files_label";
+		fileToMat(train_histograms_labels_fn.c_str(), train_histograms_labels);
+
+		string train_hist_fn = root_path + "svm/train_histograms";	
+		ifstream input_file(train_hist_fn.c_str());
+		if (input_file) 
+		{        
+			string line;
+			while (getline(input_file, line)) 
+			{
+				istringstream stream(line);
+				string x;
+				vector<float> row;
+
+				while (stream >> x) 
+				{
+					row.push_back(stof(x));
+				}
+				train_histograms.push_back(row);
+			}
+		}
+		input_file.close();
+		cout << "Loading " << train_hist_fn << "..." << endl;
+
+		svm_train(train_histograms, train_histograms_labels);
+	}
+
+
 	if (test)
 	{
-
 		int initial_label = 1;
 		vector<vector<string> > files;
 		vector<string> labels_name;
@@ -144,29 +177,14 @@ int main( int argc, char** argv )
 		Mat visual_words_m;
 		Mat visual_words_labels_m;
 
-
 		string visual_words_fn 			= root_path + "bow/visual_words";
-		string visual_words_labels_fn 	= root_path + "bow/visual_words_labels";
-
-		bool st;
-
-		st = fileToMat(visual_words_fn.c_str(), visual_words_m);
+		fileToMat(visual_words_fn.c_str(), visual_words_m);
 		cout << "Loading "<< visual_words_fn << "..." << endl;
 
-		if(st == false || visual_words_m.rows == 0)
-		{
-			printf("File %s was not found or is empty\n", visual_words_fn.c_str());
-			return 0;
-		}
-
-		st = fileToMat(visual_words_labels_fn.c_str(), visual_words_labels_m);
+		string visual_words_labels_fn 	= root_path + "bow/visual_words_labels";
+		fileToMat(visual_words_labels_fn.c_str(), visual_words_labels_m);
 		cout << "Loading "<< visual_words_labels_fn << "..." << endl;
 
-		if(st == false || visual_words_labels_m.rows == 0)
-		{
-			printf("File %s was not found or is empty\n", visual_words_labels_fn.c_str());
-			return 0;
-		}
 
 		Mat train_histograms;
 		Mat train_histograms_labels;
@@ -198,14 +216,12 @@ int main( int argc, char** argv )
 			input_file.close();
 
 			string train_histograms_labels_fn = root_path + "train_data/files_label";
-			st = fileToMat(train_histograms_labels_fn.c_str(), train_histograms_labels);
+			fileToMat(train_histograms_labels_fn.c_str(), train_histograms_labels);
 			cout << "train histograms: " << train_histograms.size() << endl;
 			cout << "train histograms labels: " << train_histograms_labels.size() << endl;
 		}
 
 		int correct_label = 0;
-
-		// load feature files
 
 		Mat files_to_process_label_m(files_to_process_label);
 		cout << "Processing " << files_to_process_label_m.size() << endl;
@@ -214,7 +230,7 @@ int main( int argc, char** argv )
 		{
 			int label = files_to_process_label[i];
 
-			cout << "Splitting features from "<< files_to_process[i] << endl;
+			cout << endl << endl << "Processing file "<< files_to_process[i] << endl;
 			extract_features_from_file(files_to_process[i].c_str(), trajectory_feat, hog_feat, hof_feat, mbh_feat);
 
 			vector<float> bow_histogram(cluster_n, 0.f);
@@ -229,17 +245,8 @@ int main( int argc, char** argv )
 
 				Mat histogram_i(bow_histogram);
 				histogram_i = histogram_i.t();
-				// cout << histogram_i.size() << endl;
 
 				Mat histogram_label_i;
-				// CvKNearest* knn = new CvKNearest();
-				// knn->train(train_histograms, files_to_process_label_m);
-
-				// cout << knn->get_sample_count() << endl;
-
-				// cout << "finding NN..." << endl;
-				// Mat neighborResponses, dists;
-				// float resultNode = knn->find_nearest(histogram_i, 1);
 
 				cout << train_histograms.size() << " " << train_histograms_labels.size() << " " << histogram_i.size() << " " << histogram_label_i.size() << endl;
 
@@ -250,7 +257,6 @@ int main( int argc, char** argv )
 				if(int( histogram_label_i.at<float>(0, 0) ) == label )
 					++correct_label;
 
-				cout << "correct labels: " << correct_label << " num of files " << files_to_process.size() << endl;
 
 				histogram_i.release();
 				histogram_label_i.release();
@@ -258,10 +264,17 @@ int main( int argc, char** argv )
 
 			if(svm)
 			{
-				cout << endl << "svm predict..." << endl;
-				svm_predict(bow_histogram, label);
+				cout << "svm predict..." << endl;
+				int label_out = svm_predict(bow_histogram, label);
+
+				cout << "label: " << label_out << " ground truth: " <<  label  << endl;
+
+
+				if(label_out == label)
+					++correct_label;
 			}
 
+			cout << "correct labels: " << correct_label << " num of files " << files_to_process.size() << endl;
 			
 			bow_histogram.clear();
 			trajectory_feat.release();

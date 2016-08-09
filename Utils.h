@@ -227,13 +227,13 @@ void svm_train(vector<vector<float> > &histogram, Mat &sample_label)
 	// system(scaling_command.c_str());
 
 	// string svm_command = "libsvm/./svm-train -s 0 -c 1000 -t 2 -g 1 -e 0.1 " + svm_train_scale_fn;
-	string svm_command = "libsvm/./svm-train -s 0 -c 1000 -t 2 -g 0.5 -e 0.1 -q " + svm_histograms_fn;
+	string svm_command = "libsvm/./svm-train -s 0 -c 1000 -t 0 -q " + svm_histograms_fn;
 	system(svm_command.c_str());
 
 }
 
 
-void svm_predict(vector<float> &bow_histogram, int &label)
+int svm_predict(vector<float> &bow_histogram, int &label)
 {
 	string svm_test_fn = root_path + "svm/svm_features_i";
 	string svm_model_fn = "./svm_histograms.model";
@@ -247,6 +247,26 @@ void svm_predict(vector<float> &bow_histogram, int &label)
 	// string svm_command = "libsvm/./svm-predict -b 0 "+ svm_test_scale_fn + " " + svm_model_scale_fn + " " + svm_test_out_fn;
 	string svm_command = "libsvm/./svm-predict -b 0 "+ svm_test_fn + " " + svm_model_fn + " label_out";
 	system(svm_command.c_str());
+
+	ifstream input_file("./label_out");
+
+	int label_out;
+	if (input_file) 
+	{        
+		string line;
+		while (getline(input_file, line)) 
+		{
+			istringstream stream(line);
+			string x;
+
+			while (stream >> x) 
+			{
+				label_out = stoi(x);
+			}
+		}
+	}
+	input_file.close();
+	return label_out;
 
 }
 
