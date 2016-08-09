@@ -19,6 +19,7 @@ using namespace std;
 using namespace cv;
 
 string root_path = "/Volumes/SOLEDAD/";
+int cluster_n = 800;
 
 
 
@@ -97,8 +98,8 @@ void splitDataSet(vector<vector<string> > &files, vector<string> &processed_file
 }
 
 
-void initFile(std::string &fileName){
-	std::ofstream f (fileName.c_str(), std::ofstream::out);
+void initFile(string &fileName){
+	ofstream f (fileName.c_str(), ofstream::out);
 	f.close();
 }
 
@@ -106,12 +107,12 @@ void initFile(std::string &fileName){
 
 
 
-void matToFile(const char* fileName, cv::Mat &v){
+void matToFile(const char* fileName, Mat &v){
 
-	std::ofstream output_file;
+	ofstream output_file;
 
-	// output_file.open (fileName, std::ios::out | std::ios::app);
-	output_file.open (fileName, std::ios::out);
+	// output_file.open (fileName, ios::out | ios::app);
+	output_file.open (fileName, ios::out);
 
 	if(output_file.is_open()){
 		for (int j = 0; j < v.rows; ++j)
@@ -128,35 +129,35 @@ void matToFile(const char* fileName, cv::Mat &v){
 	}
 }
 
-bool fileToMat(const char* fileName, cv::Mat &v){
+bool fileToMat(const char* fileName, Mat &v){
 
-	std::ifstream input_file;  
-	input_file.open (fileName, std::ios::in);
+	ifstream input_file;  
+	input_file.open (fileName, ios::in);
 
 	if(!input_file.is_open()){
 		printf("%s file not open\n", fileName);
 		return false;
 	}
 
-	std::string line;
-	while (std::getline(input_file, line)) {
-		std::istringstream stream(line);
+	string line;
+	while (getline(input_file, line)) {
+		istringstream stream(line);
 
-		std::string x;
-		std::vector<float> row;
+		string x;
+		vector<float> row;
 		while (stream >> x) 
 		{  
 			int pos = x.find ("[", 0);
-			if( pos != std::string::npos){ 
+			if( pos != string::npos){ 
 
 				x.erase (x.begin() + pos, x.begin() + pos + 1);
 			}
 
 			x.erase (x.end()-1, x.end());
 
-			row.push_back(std::stof(x));
+			row.push_back(stof(x));
 		}
-		cv::Mat row_(row);
+		Mat row_(row);
 		row_ = row_.t();
 		v.push_back(row_);
 	}
@@ -166,32 +167,114 @@ bool fileToMat(const char* fileName, cv::Mat &v){
 }
 
 
+void findNearestNeighbor(Mat &training_data, Mat &training_labels, Mat &testing_data, Mat &testing_labels, int k)
+{
+
+	CvKNearest* knn = new CvKNearest();
+
+	knn->train(training_data, training_labels, Mat(), false, 1);
+
+	Mat neighborResponses, dists;
+
+	float resultNode = knn->find_nearest(testing_data, k, testing_labels, neighborResponses, dists);
+
+	neighborResponses.release();
+	dists.release();
+
+	delete knn;
+}
 
 
-void randomMatrixSplit( cv::Mat &data, cv::Mat &mat1, cv::Mat &mat2, std::vector<int> &mat1_idx, std::vector<int> &mat2_idx, int split_size)
+void buildSVMFile(vector<float> &data, int label, const char *filename)
+{
+
+	ofstream output(filename, ofstream::out | ofstream::app);
+
+	if(!output)
+	{
+		printf("File not opened \n");
+		return;
+	}
+
+	output << label << " "; 
+	for(int j = 0; j < data.size(); ++j)
+	{
+		output << j+1 << ":" << data.at(j) << " ";
+	}
+	output << endl;
+
+
+	output.close();
+}
+
+
+void svm_train(vector<vector<float> > &histogram, Mat &sample_label)
+{
+
+	printf("Building SVM Model...\n");
+	string svm_histograms_fn = root_path + "svm/svm_histograms";
+	string svm_model_fn = root_path + "svm/svm_model";
+
+	initFile(svm_histograms_fn);
+	for(int i = 0; i < histogram.size(); ++i)
+	{ 
+		int v_label = sample_label.at<float>(0, i);
+		// cout << v_label << endl;
+		buildSVMFile(histogram.at(i), int(v_label), svm_histograms_fn.c_str());
+	}
+
+	// string scaling_command = "libsvm/./svm-scale -l -1 -u 1 -s ./train_data/svm_range " + svm_histograms_fn + " > " + svm_train_scale_fn;
+	// system(scaling_command.c_str());
+
+	// string svm_command = "libsvm/./svm-train -s 0 -c 1000 -t 2 -g 1 -e 0.1 " + svm_train_scale_fn;
+	string svm_command = "libsvm/./svm-train -s 0 -c 1000 -t 2 -g 0.5 -e 0.1 -q " + svm_histograms_fn;
+	system(svm_command.c_str());
+
+}
+
+
+void svm_predict(vector<float> &bow_histogram, int &label)
+{
+	string svm_test_fn = root_path + "svm/svm_features_i";
+	string svm_model_fn = "./svm_histograms.model";
+	
+	initFile(svm_test_fn);
+	buildSVMFile(bow_histogram, label, svm_test_fn.c_str());
+
+	// string scaling_command = "libsvm/./svm-scale -r ./train_data/svm_range " + svm_test_fn + " > " + svm_test_scale_fn;
+	// system(scaling_command.c_str());
+
+	// string svm_command = "libsvm/./svm-predict -b 0 "+ svm_test_scale_fn + " " + svm_model_scale_fn + " " + svm_test_out_fn;
+	string svm_command = "libsvm/./svm-predict -b 0 "+ svm_test_fn + " " + svm_model_fn + " label_out";
+	system(svm_command.c_str());
+
+}
+
+
+void randomMatrixSplit( Mat &data, Mat &mat1, Mat &mat2, vector<int> &mat1_idx, vector<int> &mat2_idx, int split_size)
 {
 
 	mat1.reserve(split_size);
-	mat1.reserve(data.rows - split_size);
+	mat2.reserve(data.rows - split_size);
 
-	std::vector<int> data_idx;
+	vector<int> data_idx;
 	data_idx.reserve(data.rows);
 	int n(0);
-	std::generate_n(std::back_inserter(data_idx), data.rows, [n]()mutable { return n++; });
+	generate_n(back_inserter(data_idx), data.rows, [n]()mutable { return n++; });
 
-	std::map<int, int> random_indexes;
+	map<int, int> random_indexes;
 
 	// create map with random and unique values
 	while(random_indexes.size() < split_size)
 	{
-		int rand_idx = std::rand() % data.rows;
+		int rand_idx = rand() % data.rows;
 		random_indexes[rand_idx] = rand_idx;
 	}
 
 	mat1_idx.clear();
 
 	// fill mat1 with the data at the random indexes
-	for( std::map<int, int>::iterator it = random_indexes.begin(); it != random_indexes.end(); ++it ) 
+	for( map<int, int>::iterator it = random_indexes.begin(); it != random_indexes.end(); ++it ) 
 	{
 		mat1_idx.push_back( int(it->second) );
 		mat1.push_back( data.row(int(it->second) ));
@@ -222,75 +305,11 @@ void randomMatrixSplit( cv::Mat &data, cv::Mat &mat1, cv::Mat &mat2, std::vector
 }
 
 
-void findNearestNeighbor(cv::Mat &training_data, cv::Mat &training_labels, cv::Mat &testing_data, cv::Mat &testing_labels, int k)
+void bow_build(Mat &train_data_m, Mat &feature_class_id_m, Mat &feature_video_id_m, Mat &video_class, int num_of_files)
 {
 
-	CvKNearest* knn = new CvKNearest();
-
-	knn->train(training_data, training_labels, cv::Mat(), false, 1);
-
-	cv::Mat neighborResponses, dists;
-
-	float resultNode = knn->find_nearest(testing_data, k, testing_labels, neighborResponses, dists);
-
-	neighborResponses.release();
-	dists.release();
-
-	delete knn;
-}
-
-
-void buildSVMFile(std::vector<float> &data, int label, const char *filename)
-{
-
-	std::ofstream output(filename, std::ofstream::out | std::ofstream::app);
-
-	if(!output)
-	{
-		printf("File not opened \n");
-		return;
-	}
-
-	output << label << " "; 
-	for(int j = 0; j < data.size(); ++j)
-	{
-		output << j+1 << ":" << data.at(j) << " ";
-	}
-	output << std::endl;
-
-
-	output.close();
-}
-
-
-void svm_train(std::vector<std::vector<float> > &histogram, cv::Mat &sample_label)
-{
-
-	printf("Building SVM Model...\n");
-	string svm_train_fn = "svm_model";
-	initFile(svm_train_fn);
-	for(int i = 0; i < histogram.size(); ++i)
-	{ 
-		int v_label = sample_label.at<float>(0, i);
-		cout << v_label << endl;
-		buildSVMFile(histogram.at(i), int(v_label), svm_train_fn.c_str());
-	}
-
-	// std::string scaling_command = "libsvm/./svm-scale -l -1 -u 1 -s ./train_data/svm_range " + svm_train_fn + " > " + svm_train_scale_fn;
-	// std::system(scaling_command.c_str());
-
-	// std::string svm_command = "libsvm/./svm-train -s 0 -c 1000 -t 2 -g 1 -e 0.1 " + svm_train_scale_fn;
-	std::string svm_command = "libsvm/./svm-train -s 0 -c 100 -t 2 -g 10 -e 0.1 " + svm_train_fn;
-	std::system(svm_command.c_str());
-
-}
-
-
-void bow_build(cv::Mat &train_data_m, cv::Mat &feature_class_id_m, cv::Mat &feature_video_id_m, cv::Mat &video_class, int num_of_files)
-{
 	printf("Building BOW codebook from %d features...\n", train_data_m.rows);
 
-	int cluster_n = 400;
 
 	cv::Mat kmeans_data_m, kmeans_labels_m, kmeans_centers_m, kmeans_data_diff_m;
 	std::vector<std::vector<float> > histograms_v;
@@ -320,19 +339,16 @@ void bow_build(cv::Mat &train_data_m, cv::Mat &feature_class_id_m, cv::Mat &feat
 	cv::Mat kmeans_centers_labels_m(kmeans_centers_labels_v);
 
   	// Save training data
-	string data_samples_fn = "train_samples";
+	string data_samples_fn = root_path + "bow/kmeans_train_samples";
 	initFile(data_samples_fn);
 	matToFile(data_samples_fn.c_str(), kmeans_data_m);
-
-	string data_samples_labels_fn = "train_samples_labels";
+	string data_samples_labels_fn = root_path + "bow/kmeans_train_samples_labels";
 	initFile(data_samples_labels_fn);
 	matToFile(data_samples_labels_fn.c_str(), kmeans_labels_m);
-
-	string visual_words_fn = "visual_words";
+	string visual_words_fn = root_path + "bow/visual_words";
 	initFile(visual_words_fn);
 	matToFile(visual_words_fn.c_str(), kmeans_centers_m);
-
-	string visual_words_labels_fn = "visual_words_labels";
+	string visual_words_labels_fn = root_path + "bow/visual_words_labels";
 	initFile(visual_words_labels_fn);
 	matToFile(visual_words_labels_fn.c_str(), kmeans_centers_labels_m);
 
@@ -340,6 +356,8 @@ void bow_build(cv::Mat &train_data_m, cv::Mat &feature_class_id_m, cv::Mat &feat
 	printf("Finding nearest neighboor...\n");
   	// classify the rest of the data based on the kmeans centroids
 	cv::Mat kmeans_labels_diff_m;
+
+	// cout << kmeans_centers_m.size() << " " << kmeans_centers_labels_m.size() << " " << kmeans_data_diff_m.size() << " " << kmeans_labels_diff_m.size() << endl;
 	findNearestNeighbor(kmeans_centers_m, kmeans_centers_labels_m, kmeans_data_diff_m, kmeans_labels_diff_m, 1);
 
 	feature_class_id_m.copyTo(feature_class_id_v);
@@ -355,7 +373,7 @@ void bow_build(cv::Mat &train_data_m, cv::Mat &feature_class_id_m, cv::Mat &feat
 	kmeans_labels_diff_m.release();
 	kmeans_data_diff_m.release();
 
-	printf("Initializing histograms...\n");
+	printf("Initializing histograms for %d files...\n", num_of_files);
   	// Initialize histogram vector
 	for (int i = 0; i < num_of_files; ++i)
 	{
@@ -386,8 +404,10 @@ void bow_build(cv::Mat &train_data_m, cv::Mat &feature_class_id_m, cv::Mat &feat
 	}  
 
 
-	std::ofstream data_file;      // pay attention here! ofstream
-	data_file.open("train_histograms");
+	std::ofstream data_file;
+	string train_hist_fn = root_path + "svm/train_histograms";
+	initFile(train_hist_fn);
+	data_file.open(train_hist_fn.c_str());
 
 	for (int i = 0; i < histograms_v.size(); ++i)
 	{
@@ -400,11 +420,35 @@ void bow_build(cv::Mat &train_data_m, cv::Mat &feature_class_id_m, cv::Mat &feat
 	svm_train(histograms_v, video_class);
 
 	histograms_v.clear();	
+
 	return;
 }
 
 
-bool extract_features_from_file(const char* fileName, Mat &trajectory_feat, Mat &hog_feat, Mat &hof_feat, Mat &mbh_feat)
+void get_bow_histogram(Mat &testing_data, int &label, vector<float> &bow_histogram, Mat &visual_words_m, Mat &visual_words_labels_m){
+
+	int k = 1;
+
+	for (int i = 0; i < testing_data.rows; ++i)
+	{
+		Mat testing_label;
+		Mat testing_data_i(testing_data.row(i));
+
+		findNearestNeighbor(visual_words_m, visual_words_labels_m, testing_data_i,  testing_label, k);
+
+		vector<float> testing_label_v;
+		testing_label.copyTo(testing_label_v);
+
+		int word_pos = (testing_label_v.at(0));
+		// int word_pos = testing_label.at<float>(0,0);
+
+		bow_histogram[word_pos] += 1;
+	}
+	return;
+}
+
+
+int extract_features_from_file(const char* fileName, Mat &trajectory_feat, Mat &hog_feat, Mat &hof_feat, Mat &mbh_feat)
 {
 
 	ifstream input_file;  
@@ -424,6 +468,7 @@ bool extract_features_from_file(const char* fileName, Mat &trajectory_feat, Mat 
 
 	string line;
 
+	int num_of_samples = 0;
 	while (getline(input_file, line)) 
 	{
 		istringstream stream(line);
@@ -461,26 +506,28 @@ bool extract_features_from_file(const char* fileName, Mat &trajectory_feat, Mat 
 			}
 
 		}
-		
-		cv::Mat traj_row_(traj_row);
+
+		Mat traj_row_(traj_row);
 		traj_row_ = traj_row_.t();
 		trajectory_feat.push_back(traj_row_);
 
-		cv::Mat hog_row_(hog_row);
+		Mat hog_row_(hog_row);
 		hog_row_ = hog_row_.t();
 		hog_feat.push_back(hog_row_);
 
-		cv::Mat hof_row_(hof_row);
+		Mat hof_row_(hof_row);
 		hof_row_ = hof_row_.t();
 		hof_feat.push_back(hof_row_);
 
-		cv::Mat mbh_row_(mbh_row);
+		Mat mbh_row_(mbh_row);
 		mbh_row_ = mbh_row_.t();
 		mbh_feat.push_back(mbh_row_);
+
+		++num_of_samples;
 	}
 
 	input_file.close();
-	return true;
+	return num_of_samples;
 }
 
 
@@ -493,13 +540,15 @@ void load_features_from_file(const char *path, vector<string> &files_to_process,
 	{
 		cout << "loading file: " << files_to_process[i] << endl;
 
-		extract_features_from_file(files_to_process[i].c_str(), trajectory_feat, hog_feat, hof_feat, mbh_feat);
+		int num_of_samples = extract_features_from_file(files_to_process[i].c_str(), trajectory_feat, hog_feat, hof_feat, mbh_feat);
 
-		vector<float> samples_label_v(trajectory_feat.rows, files_to_process_label[i]);
+		cout << "trajectories found: " << num_of_samples << endl;
+
+		vector<float> samples_label_v(num_of_samples, files_to_process_label[i]);
 		Mat samples_label_m( samples_label_v );
 		samples_label.push_back(samples_label_m);
 
-		vector<float> sample_file_id_v(trajectory_feat.rows, num_of_files);
+		vector<float> sample_file_id_v(num_of_samples, num_of_files);
 		Mat sample_file_id_m( sample_file_id_v );
 		samples_file_id.push_back(sample_file_id_m);
 		++num_of_files;
@@ -507,30 +556,37 @@ void load_features_from_file(const char *path, vector<string> &files_to_process,
 
 	Mat files_label(files_to_process_label);
 	string file_path = string(path) + "/files_label";
+	initFile(file_path);
 	matToFile(file_path.c_str(), files_label);
 	cout << "writing " << file_path << endl;
 
 	file_path = string(path) + "/samples_file_id";
+	initFile(file_path);
 	matToFile(file_path.c_str(), samples_file_id);
 	cout << "writing " << file_path << endl;
 
 	file_path = string(path) + "/samples_label";
+	initFile(file_path);
 	matToFile(file_path.c_str(), samples_label);
 	cout << "writing " << file_path << endl;
 	
 	file_path = string(path) + "/trajectory_features";
+	initFile(file_path);
 	matToFile(file_path.c_str(), trajectory_feat);
 	cout << "writing " << file_path << endl;
 	
 	file_path = string(path) + "/hog_features";
+	initFile(file_path);
 	matToFile(file_path.c_str(), hog_feat);
 	cout << "writing " << file_path << endl;
 	
 	file_path = string(path) + "/hof_features";
+	initFile(file_path);
 	matToFile(file_path.c_str(), hof_feat);
 	cout << "writing " << file_path << endl;
 
 	file_path = string(path) + "/mbh_features";
+	initFile(file_path);
 	matToFile(file_path.c_str(), mbh_feat);
 	cout << "writing " << file_path << endl;
 
