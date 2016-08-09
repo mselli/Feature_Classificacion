@@ -33,7 +33,7 @@ int main( int argc, char** argv )
 	Mat files_label;
 
 	int num_of_files 	= 0;
-	int mode 			= 1;
+	int mode 			= 2;
 
 	string path = "/Volumes/SOLEDAD/decompressed_features/";
 	string feat_path;
@@ -169,7 +169,7 @@ int main( int argc, char** argv )
 		}
 
 		Mat train_histograms;
-		// Mat files_to_process_label_m;
+		Mat train_histograms_labels;
 
 		if(nn)
 		{
@@ -197,9 +197,10 @@ int main( int argc, char** argv )
 			}
 			input_file.close();
 
-			// string train_histograms_labels_fn = root_path + "train_data/files_label";
-			// st = fileToMat(train_histograms_labels_fn.c_str(), train_histograms_labels);
+			string train_histograms_labels_fn = root_path + "train_data/files_label";
+			st = fileToMat(train_histograms_labels_fn.c_str(), train_histograms_labels);
 			cout << "train histograms: " << train_histograms.size() << endl;
+			cout << "train histograms labels: " << train_histograms_labels.size() << endl;
 		}
 
 		int correct_label = 0;
@@ -240,9 +241,9 @@ int main( int argc, char** argv )
 				// Mat neighborResponses, dists;
 				// float resultNode = knn->find_nearest(histogram_i, 1);
 
-				cout << train_histograms.size() << " " << files_to_process_label_m.size() << " " << histogram_i.size() << " " << histogram_label_i.size() << endl;
+				cout << train_histograms.size() << " " << train_histograms_labels.size() << " " << histogram_i.size() << " " << histogram_label_i.size() << endl;
 
-				findNearestNeighbor(train_histograms, files_to_process_label_m, histogram_i, histogram_label_i, 1);
+				findNearestNeighbor(train_histograms, train_histograms_labels, histogram_i, histogram_label_i, 1);
 
 				cout << "label: " << histogram_label_i.at<float>(0, 0) << " ground truth: " <<  label << endl << endl;
 
