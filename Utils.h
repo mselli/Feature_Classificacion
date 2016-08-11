@@ -227,7 +227,7 @@ void svm_train(vector<vector<float> > &histogram, Mat &sample_label)
 	// system(scaling_command.c_str());
 
 	// string svm_command = "libsvm/./svm-train -s 0 -c 1000 -t 2 -g 1 -e 0.1 " + svm_train_scale_fn;
-	string svm_command = "libsvm/./svm-train -s 0 -c 1000 -t 0 -q " + svm_histograms_fn;
+	string svm_command = "libsvm/./svm-train -s 0 -t 2 -c 100 -g 0.00000001 " + svm_histograms_fn;
 	system(svm_command.c_str());
 
 }

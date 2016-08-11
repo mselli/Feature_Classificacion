@@ -12,11 +12,11 @@ using namespace cv;
 
 int load_and_split_features = 0;
 int load_train_features 	= 0;
-int build_bow_and_svm 		= 0;
+int build_bow 				= 0;
 int svm_model 	 		 	= 1;
 int test 	 	 		 	= 1;
-int nn 	 		 			= 0;
-int svm 	 		 		= 1;
+int test_nn 	 		 	= 0;
+int test_svm 	 		 	= 1;
 
 extern string root_path;
 extern 	int cluster_n;
@@ -87,15 +87,15 @@ int main( int argc, char** argv )
 		// cout << "Loading "<< file_name << "..." << endl;
 		// fileToMat(file_name.c_str(), trajectory_feat);
 
-		hog_feat.release();
-		file_name = root_path + "train_data/hog_features";
-		cout << "Loading "<< file_name << "..." << endl;
-		fileToMat(file_name.c_str(), hog_feat);
-
-		// hof_feat.release();
-		// file_name = root_path + "train_data/hof_features";
+		// hog_feat.release();
+		// file_name = root_path + "train_data/hog_features";
 		// cout << "Loading "<< file_name << "..." << endl;
-		// fileToMat(file_name.c_str(), hof_feat);
+		// fileToMat(file_name.c_str(), hog_feat);
+
+		hof_feat.release();
+		file_name = root_path + "train_data/hof_features";
+		cout << "Loading "<< file_name << "..." << endl;
+		fileToMat(file_name.c_str(), hof_feat);
 		
 		// file_name = root_path + "train_data/mbh_features";
 		// cout << "Loading "<< file_name << "..." << endl;
@@ -118,7 +118,7 @@ int main( int argc, char** argv )
 
 	}
 
-	if(build_bow_and_svm)
+	if(build_bow)		
 	{
 		// Mat files_label;
 		// string file_name = root_path + "train_data/files_label";
@@ -126,7 +126,8 @@ int main( int argc, char** argv )
 		// fileToMat(file_name.c_str(), files_label); 
 
 		cout << endl << "Building BOW and SVM model from " << files_label.rows << " files ..." << endl;
-		bow_build(hog_feat, samples_label, samples_file_id, files_label, files_label.rows);
+		// bow_build(hog_feat, samples_label, samples_file_id, files_label, files_label.rows);
+		bow_build(hof_feat, samples_label, samples_file_id, files_label, files_label.rows);
 	}
 
 	if(svm_model)
@@ -189,7 +190,7 @@ int main( int argc, char** argv )
 		Mat train_histograms;
 		Mat train_histograms_labels;
 
-		if(nn)
+		if(test_nn)
 		{
 			string train_hist_fn = root_path + "svm/train_histograms";
 			cout << "Loading " << train_hist_fn << "..." << endl;
@@ -236,10 +237,11 @@ int main( int argc, char** argv )
 			vector<float> bow_histogram(cluster_n, 0.f);
 
 			cout << "building BOW..." << endl;
-			get_bow_histogram(hog_feat, label, bow_histogram, visual_words_m, visual_words_labels_m);
+			// get_bow_histogram(hog_feat, label, bow_histogram, visual_words_m, visual_words_labels_m);
+			get_bow_histogram(hof_feat, label, bow_histogram, visual_words_m, visual_words_labels_m);
 			
 
-			if(nn)
+			if(test_nn)
 			{
 				cout << "running NN..." << endl;
 
@@ -262,7 +264,7 @@ int main( int argc, char** argv )
 				histogram_label_i.release();
 			}
 
-			if(svm)
+			if(test_svm)
 			{
 				cout << "svm predict..." << endl;
 				int label_out = svm_predict(bow_histogram, label);
@@ -274,7 +276,7 @@ int main( int argc, char** argv )
 					++correct_label;
 			}
 
-			cout << "correct labels: " << correct_label << " num of files " << files_to_process.size() << endl;
+			cout << "correct labels: " << correct_label << " out of " << i+1 << ". Num of files: " << files_to_process.size() << endl;
 			
 			bow_histogram.clear();
 			trajectory_feat.release();
