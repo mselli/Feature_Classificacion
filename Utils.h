@@ -18,7 +18,7 @@
 using namespace std;
 using namespace cv;
 
-string root_path = "/Volumes/SOLEDAD/";
+extern string root_path;
 int cluster_n = 800;
 
 

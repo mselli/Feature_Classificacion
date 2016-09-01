@@ -13,12 +13,13 @@ using namespace cv;
 int load_and_split_features = 0;
 int load_train_features 	= 0;
 int build_bow 				= 0;
-int svm_model 	 		 	= 1;
+int svm_model 	 		 	= 0;
 int test 	 	 		 	= 1;
 int test_nn 	 		 	= 0;
 int test_svm 	 		 	= 1;
+int mode 					= 2;
 
-extern string root_path;
+string root_path = "/Users/Soledad/github/Real_Time_Trajectories/data_set/jpl_inria_feat_";
 extern 	int cluster_n;
 
 
@@ -34,9 +35,10 @@ int main( int argc, char** argv )
 	Mat files_label;
 
 	int num_of_files 	= 0;
-	int mode 			= 2;
 
-	string path = "/Volumes/SOLEDAD/decompressed_features/";
+
+	// string path = "/Volumes/SOLEDAD/decompressed_features/";
+	string path = "/Users/Soledad/github/Real_Time_Trajectories/data_set/jpl_inria_feat";
 	string feat_path;
 
 	string cmd = "mkdir " + root_path + "bow";
